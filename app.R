@@ -25,27 +25,7 @@ ui <- navbarPage(
            fluidPage(
              sidebarLayout(
                sidebarPanel(
-                 helpText("Scatterplots to see the correlation between income per capita vs. college completion and employment percentage. Choose the y-value to change the plot."),
-                 selectInput(
-                   #we use input$plot1_input in the server side
-                   "plot1_input", h3("Select the y-value"),
-                   choices = list(
-                     "College Completion Percentage" = "collegecompletion_2017_2021", 
-                     "Employment / Population" = "employment_percentage_2021"), 
-                   selected = "collegecompletion_2017_2021")
-               ),
-               mainPanel(
-                 plotlyOutput("plot1")
-               )
-             )
-           )
-  ),
-  #second page
-  tabPanel("Page 2",
-           fluidPage(
-             sidebarLayout(
-               sidebarPanel(
-                 helpText("Interactive map and vertical bar graph to see income per capita level by state."),
+                 helpText("Interactive map and graph to see income per capita level by state."),
                  sliderInput(inputId = "selected_year", 
                              label = "Select the Year:", 
                              min = 1970, 
@@ -77,12 +57,32 @@ ui <- navbarPage(
              )
            )
   ),
+  #second page
+  tabPanel("Page 2",
+           fluidPage(
+             sidebarLayout(
+               sidebarPanel(
+                 helpText("Scatterplots to see the correlation between income per capita vs. college completion and employment percentage. Choose the y-value to change the plot."),
+                 selectInput(
+                   #we use input$plot1_input in the server side
+                   "plot1_input", h3("Select the y-value"),
+                   choices = list(
+                     "College Completion Percentage" = "collegecompletion_2017_2021", 
+                     "Employment / Population" = "employment_percentage_2021"), 
+                   selected = "collegecompletion_2017_2021")
+               ),
+               mainPanel(
+                 plotlyOutput("plot1")
+               )
+             )
+           )
+  ),
   #third page
   tabPanel("Page 3",
            fluidPage(
              mainPanel(
                fluidRow(
-                 helpText("Two line graphs to see the growth of income per capita and education level over time."),
+                 helpText("A line graph to see the growth of income per capita over time for the entire country."),
                  plotlyOutput("plot4")
                )
              )
@@ -92,7 +92,7 @@ ui <- navbarPage(
 
 # server
 server <- function(input,output){
-  
+  #this plot1 is for page 2, while plot2 below is for page 1.
   output$plot1 <- renderPlotly({
     
     hover_label <- reactive({
@@ -159,11 +159,19 @@ server <- function(input,output){
       pal <- colorQuantile("Greens", NULL, n = 5)
     }
     
-    #mytext is for the hovertemplate data, which we will call under the label later
-    mytext <- paste(
-      "<b>State:</b> ", merged_data@data$GeoName, "<br />",
-      "<b>Income Per Capita:</b> ", sprintf("$%s", format(merged_data@data$income_per_capita, big.mark = ",")), "<br/>") %>%
-      lapply(htmltools::HTML)
+    # this will create different hovertext depends on user input on selected_geoName
+    if (input$selected_geoName == "All") {
+      mytext <- paste(
+        "<b>State:</b> ", merged_data@data$GeoName, "<br />",
+        "<b>Income Per Capita:</b> ", sprintf("$%s", format(merged_data@data$income_per_capita, big.mark = ",")), "<br/>")
+    } else {
+      mytext <- ifelse(merged_data@data$GeoName == input$selected_geoName,
+                       paste("<b>State:</b> ", merged_data@data$GeoName, "<br />",
+                             "<b>Income Per Capita:</b> ", sprintf("$%s", format(merged_data@data$income_per_capita, big.mark = ",")), "<br/>"), 
+                       "")
+    }
+    
+    mytext <- lapply(mytext, htmltools::HTML)
     
     # Add a title to the first map
     titlemap1 <- tags$div(
@@ -188,7 +196,7 @@ server <- function(input,output){
     } else if (input$selected_geoName == "Rhode Island") {
       map <- map %>% setView(lng = -72, lat = 41, zoom = 6)
     } else {
-      map <- map %>% setView(lng = -110, lat = 40, zoom = 3)
+      map <- map %>% setView(lng = -95, lat = 40, zoom = 3)
     }
     
     map <- map %>%
@@ -221,7 +229,7 @@ server <- function(input,output){
     map
   })
   
-  #vertical bar graph
+  #vertical bar graph for Page 1
   output$plot2 <- renderPlotly({
     
     # Define green color theme
@@ -251,7 +259,7 @@ server <- function(input,output){
                           ))
   })
   
-  #line graph for Page 2
+  #line graph for Page 1
   output$plot3 <- renderPlotly({
     
     # Filter data for selected state
@@ -278,17 +286,17 @@ server <- function(input,output){
              dragmode = FALSE)
   })
   
-
+  #line graph for Page 3
   # Define a color palette with 8 colors from Viridis
   color_palette <- c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF", "#26828EFF", "#1F9D89FF", "#35B779FF", "#6DCD59FF")
   
   output$plot4 <- renderPlotly({
     
     #this is needed if we want to use the Viridis theme from color_palette above
-    unique_geo_names <- unique(part4_incomeline$GeoName)
+    unique_geo_names <- unique(part2_map1$GeoName)
     color_map <- setNames(rep(color_palette, length.out = length(unique_geo_names)), unique_geo_names)
     
-    plot_ly(data = part4_incomeline,
+    plot_ly(data = part2_map1,
             type = "scatter", 
             mode = "lines",
             x = ~year, 
