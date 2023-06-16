@@ -7,6 +7,7 @@ library(rgdal)
 library(geojsonio)
 library(janitor)
 library(highcharter)
+library(shinycssloaders)
 
 #####Import Data
 # Source ----
@@ -73,7 +74,7 @@ ui <- navbarPage(
                    selected = "collegecompletion_2017_2021")
                ),
                mainPanel(
-                 highchartOutput("plot1")
+                 withSpinner(highchartOutput("plot1"))
                )
              )
            )
@@ -84,7 +85,7 @@ ui <- navbarPage(
              mainPanel(
                fluidRow(
                  helpText("Highchart line graph to see the growth of income per capita over time for the entire country."),
-                 highchartOutput("plot4", height=580)
+                 withSpinner(highchartOutput("plot4", height=580))
                )
              )
            )
