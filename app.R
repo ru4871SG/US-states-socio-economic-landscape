@@ -6,6 +6,7 @@ library(leaflet)
 library(rgdal)
 library(geojsonio)
 library(janitor)
+library(highcharter)
 
 #####Import Data
 # Source ----
@@ -62,7 +63,7 @@ ui <- navbarPage(
            fluidPage(
              sidebarLayout(
                sidebarPanel(
-                 helpText("Scatterplots to see the correlation between income per capita vs. college completion and employment percentage. Choose the y-value to change the plot."),
+                 helpText("Highchart scatterplots to see the correlation between income per capita vs. college completion and employment percentage. Choose the y-value to change the plot."),
                  selectInput(
                    #we use input$plot1_input in the server side
                    "plot1_input", h3("Select the y-value"),
@@ -72,7 +73,7 @@ ui <- navbarPage(
                    selected = "collegecompletion_2017_2021")
                ),
                mainPanel(
-                 plotlyOutput("plot1")
+                 highchartOutput("plot1")
                )
              )
            )
@@ -82,8 +83,8 @@ ui <- navbarPage(
            fluidPage(
              mainPanel(
                fluidRow(
-                 helpText("A line graph to see the growth of income per capita over time for the entire country."),
-                 plotlyOutput("plot4")
+                 helpText("Highchart line graph to see the growth of income per capita over time for the entire country."),
+                 highchartOutput("plot4", height=580)
                )
              )
            )
@@ -93,40 +94,46 @@ ui <- navbarPage(
 # server
 server <- function(input,output){
   #this plot1 is for page 2, while plot2 below is for page 1.
-  output$plot1 <- renderPlotly({
+  selected_data <- reactive({
+    hover_label <- if (input$plot1_input == "collegecompletion_2017_2021") {
+      "College Completion"
+    } else if (input$plot1_input == "employment_percentage_2021") {
+      "Employment / Population"
+    } else {
+      input$plot1_input
+    }
     
-    hover_label <- reactive({
-      if (input$plot1_input == "collegecompletion_2017_2021") {
-        return("College Completion")
-      } else if (input$plot1_input == "employment_percentage_2021") {
-        return("Employment / Population")
-      } else {
-        return(input$plot1_input)
-      }
-    })
+    # Linear Model, needed to make it here for the highchart plot
+    lm_model <- lm(part1_merged[[input$plot1_input]] ~ incomepercapita_2021, data = part1_merged)
+    x_range <- range(part1_merged$incomepercapita_2021)
+    x_values <- seq(from = x_range[1], to = x_range[2], length.out = 100)
+    y_values <- predict(lm_model, newdata = data.frame(incomepercapita_2021 = x_values))
+    lm_line <- data.frame(x_values, y_values)
+    
     
     color_scale <- grDevices::colorRampPalette(viridis::viridis(100))
     
     part1_merged$color <- color_scale(100)[cut(part1_merged$incomepercapita_2021, breaks = 100)]
     
-    plot_ly(data = part1_merged,
-            x = ~incomepercapita_2021,
-            y = ~part1_merged[[input$plot1_input]],
-            text = ~paste("<b>State:</b>", GeoName,
-                          "<br><b> Income per Capita:</b>", sprintf("$%s", formatC(incomepercapita_2021, format = "d", big.mark = ",")),
-                          "<br><b>", hover_label(), ":</b>", sprintf("%.2f%%", 100 * part1_merged[[input$plot1_input]])),
-            type = "scatter",
-            mode = "markers",
-            marker = list(size = 10, color = ~color),
-            hoverinfo = "text") %>%
-      layout(title = "Income Per Capita vs. Education and Employment",
-             showlegend = FALSE,
-             xaxis = list(title = "Income per Capita"),
-             yaxis = list(title = hover_label(), tickformat = ".0%")) %>%
-      #we need to add the lm line here due to plot_ly() difference with ggplot
-      add_trace(x = ~incomepercapita_2021, y = ~lm(part1_merged[[input$plot1_input]] ~ incomepercapita_2021, data = part1_merged)$fitted.values, name = 'lm', type = 'scatter', mode = 'lines', line = list(color = "red", dash = "solid"), inherit=FALSE) %>%
-      # add correlation coefficient as annotation
-      add_annotations(x = 0.97, y = 0.1, text = paste0("Pearson's correlation coefficient: ", round(cor(part1_merged$incomepercapita_2021, part1_merged[[input$plot1_input]]), 4)), showarrow = FALSE, xref = "paper", yref = "paper")
+    hchart(part1_merged, "scatter", hcaes(x = incomepercapita_2021, y = .data[[input$plot1_input]], color = color), name = hover_label) %>%
+      hc_title(text = "Income Per Capita vs. Education and Employment") %>%
+      hc_xAxis(title = list(text = "Income per Capita")) %>%
+      hc_yAxis(title = list(text = hover_label)) %>%
+      hc_colorAxis() %>%
+      hc_tooltip(formatter = JS("function() {
+          if (this.series.name == 'Linear Regression') {
+              return '<b>X: </b>' + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.x) +
+        '<br><b>Y: </b>' + (this.y * 100).toFixed(2) + '%';
+          } else {
+              return '<b>State: </b>' + this.point.GeoName +
+        '<br><b>Income per Capita: </b>' + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.point.incomepercapita_2021) +
+        '<br><b>' + this.series.name + ': </b>' + (this.point.y * 100).toFixed(2) + '%';
+          }}")) %>%
+      hc_add_series(data = lm_line, type = "line", name = "Linear Regression", hcaes(x = x_values, y = y_values), color = "red")
+  })
+  
+  output$plot1 <- renderHighchart({
+    selected_data()
   })
   
   data_for_year <- reactive({
@@ -287,37 +294,41 @@ server <- function(input,output){
   })
   
   #line graph for Page 3
-  # Define a color palette with 8 colors from Viridis
-  color_palette <- c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF", "#26828EFF", "#1F9D89FF", "#35B779FF", "#6DCD59FF")
-  
-  output$plot4 <- renderPlotly({
+  output$plot4 <- renderHighchart({
     
-    #this is needed if we want to use the Viridis theme from color_palette above
-    unique_geo_names <- unique(part2_map1$GeoName)
-    color_map <- setNames(rep(color_palette, length.out = length(unique_geo_names)), unique_geo_names)
+    # Color palette is same as before
+    color_palette <- c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF", "#26828EFF", "#1F9D89FF", "#35B779FF", "#6DCD59FF")
     
-    plot_ly(data = part2_map1,
-            type = "scatter", 
-            mode = "lines",
-            x = ~year, 
-            y = ~income_per_capita, 
-            color = ~GeoName, 
-            colors = color_map,
-            text = ~GeoName,
-            hovertemplate = paste(
-              "<b>%{text}<br></b>",
-              "Income Per Capita: %{y:$,.0f}<br>",
-              "Year: %{x:.0f}",
-              "<extra></extra>"
-            )
-            ) %>% 
-      layout(title = "Income Per Capita Over Time",
-             xaxis = list(title = "Year"),
-             yaxis = list(title = "Income Per Capita"),
-             dragmode = FALSE)
+    # Creating a list of data by GeoName
+    list_data <- split(part2_map1, part2_map1$GeoName)
+    
+    # Initializing a highchart object
+    hchart <- highchart() 
+    
+    # Adding data series
+    for (i in 1:length(list_data)) {
+      hchart <- hchart %>% 
+        hc_add_series(
+          list_data[[i]], 
+          type = "line", 
+          hcaes(x = year, y = income_per_capita), 
+          name = unique(list_data[[i]]$GeoName),
+          color = color_palette[i %% length(color_palette) + 1]  # Selecting color from palette in a cyclical manner
+        )
+    }
+    
+    # Adding titles and returning the plot
+    hchart %>% 
+      hc_title(text = "Income Per Capita Over Time") %>% 
+      hc_xAxis(title = list(text = "Year")) %>% 
+      hc_yAxis(title = list(text = "Income Per Capita")) %>% 
+      hc_tooltip(useHTML = TRUE, formatter = JS("
+      function() {
+        var income = Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.y);
+        return '<b>' + this.series.name + '</b><br>Income Per Capita: ' + income + '<br>Year: ' + this.x;
+      }
+    "))
   })
-  
-  
   
 }
 
