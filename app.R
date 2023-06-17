@@ -41,18 +41,20 @@ ui <- navbarPage(
                              #this part is important so you start with all the states, but users can select an individual state
                              choices = c("All", unique(part2_map1$GeoName)),
                              selected = "All",
-                             multiple = FALSE)
+                             multiple = FALSE,
+                             selectize = FALSE
+                 )
                ),
                mainPanel(
                  leafletOutput(outputId = "map"),
                  conditionalPanel(
                    condition = 'input.selected_geoName == "All"',
-                   plotlyOutput(outputId = "plot2", height = 750)
+                   highchartOutput(outputId = "plot2", height = 850)
                  ),
                  conditionalPanel(
                    condition = 'input.selected_geoName != "All"',
                    tags$div(style = "display:inline-block; width:25px;"),
-                   plotlyOutput(outputId = "plot3", height = 300)
+                   withSpinner(highchartOutput(outputId = "plot3"))
                  )
                )
                
@@ -71,7 +73,8 @@ ui <- navbarPage(
                    choices = list(
                      "College Completion Percentage" = "collegecompletion_2017_2021", 
                      "Employment / Population" = "employment_percentage_2021"), 
-                   selected = "collegecompletion_2017_2021")
+                   selected = "collegecompletion_2017_2021",
+                   selectize = FALSE)
                ),
                mainPanel(
                  withSpinner(highchartOutput("plot1"))
@@ -238,72 +241,138 @@ server <- function(input,output){
   })
   
   #vertical bar graph for Page 1
-  output$plot2 <- renderPlotly({
+  output$plot2 <- renderHighchart({
     
-    # Define green color theme
-    green_theme <- theme_minimal() +
-      theme(
-        plot.background = element_rect(fill = "#f4f0f0"),
-        panel.background = element_rect(fill = "#c4e2c0"),
-        panel.grid.major = element_line(colour = "white"),
-        panel.grid.minor = element_line(colour = "white")
-      )
+    data_ordered <- data_for_year() %>%
+      arrange(desc(income_per_capita))
     
-    # Create bar plot
-    ggplot1 <- ggplot(data_for_year(), 
-                      aes(x = reorder(GeoName, income_per_capita), 
-                          y = income_per_capita,
-                          text = paste(GeoName, ":", sprintf("$%s", formatC(income_per_capita, format = "d", big.mark = ",")))
-                          )) +
-      geom_bar(stat = "identity", fill = "#428f61") +
-      green_theme +
-      coord_flip() +
-      labs(title = "Income Per Capita Over Time", x = "", y = "")
+    hc <- hchart(data_ordered, "bar", hcaes(x = GeoName, y = income_per_capita, text = paste(GeoName, ": $", formatC(income_per_capita, format = "d", big.mark = ",")))) %>%
+      hc_xAxis(title = list(text = "")) %>%
+      hc_yAxis(title = list(text = "Income Per Capita")) %>%
+      hc_tooltip(
+        formatter = JS(
+          "function() {
+          return this.point.text;
+        }"
+        )
+      ) %>%
+      hc_title(text = "Income Per Capita for All") %>%
+      hc_colors("#428f61") %>%
+      hc_credits(enabled = FALSE) %>%
+      hc_exporting(enabled = FALSE)
     
-    ggplotly(ggplot1, tooltip = "text") %>%
-      layout(hovermode = 'closest') %>% # Hover closest to cursor
-      layout(
-        hoverlabel = list(bgcolor = "white"
-                          ))
+    hc
   })
+  # output$plot2 <- renderPlotly({
+  #   
+  #   # Define green color theme
+  #   green_theme <- theme_minimal() +
+  #     theme(
+  #       plot.background = element_rect(fill = "#f4f0f0"),
+  #       panel.background = element_rect(fill = "#c4e2c0"),
+  #       panel.grid.major = element_line(colour = "white"),
+  #       panel.grid.minor = element_line(colour = "white")
+  #     )
+  #   
+  #   # Create bar plot
+  #   ggplot1 <- ggplot(data_for_year(), 
+  #                     aes(x = reorder(GeoName, income_per_capita), 
+  #                         y = income_per_capita,
+  #                         text = paste(GeoName, ":", sprintf("$%s", formatC(income_per_capita, format = "d", big.mark = ",")))
+  #                         )) +
+  #     geom_bar(stat = "identity", fill = "#428f61") +
+  #     green_theme +
+  #     coord_flip() +
+  #     labs(title = "Income Per Capita Over Time", x = "", y = "")
+  #   
+  #   ggplotly(ggplot1, tooltip = "text") %>%
+  #     layout(hovermode = 'closest') %>% # Hover closest to cursor
+  #     layout(
+  #       hoverlabel = list(bgcolor = "white"
+  #                         ))
+  # })
   
   #line graph for Page 1
-  output$plot3 <- renderPlotly({
+  library(highcharter)
+  
+  output$plot3 <- renderHighchart({
     
-    # Filter data for selected state
     state_data <- part2_map1 %>%
       filter(GeoName == input$selected_geoName)
+
+    hc <- highchart() %>%
+      hc_chart(type = "line") %>%
+      hc_xAxis(title = list(text = "Year")) %>%
+      hc_yAxis(title = list(text = "Income Per Capita")) %>%
+      hc_tooltip(
+        formatter = JS(
+          "function() {
+          var income = Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.y);
+          return 'Income Per Capita: ' + income + '<br>' +
+            'Year: ' + this.x;
+        }"
+        )
+      ) %>%
+      hc_title(
+        text = paste("Income Per Capita Over Time for", input$selected_geoName)
+      ) %>%
+      hc_add_series(
+        data = state_data,
+        type = "line",
+        hcaes(x = year, y = income_per_capita),
+        name = "Income Per Capita",
+        color = "#35B779FF"
+      )
     
-    # Create line graph
-    plot_ly(data = state_data,
-            type = "scatter", 
-            mode = "lines",
-            x = ~year, 
-            y = ~income_per_capita, 
-            text = ~GeoName,
-            hovertemplate = paste(
-              "<b>%{text}<br></b>",
-              "Income Per Capita: %{y:$,.0f}<br>",
-              "Year: %{x:.0f}",
-              "<extra></extra>"
-            ),
-            line = list(color = '#35B779FF')) %>% 
-      layout(title = paste("Income Per Capita Over Time for", input$selected_geoName),
-             xaxis = list(title = "Year"),
-             yaxis = list(title = "Income Per Capita"),
-             dragmode = FALSE)
+    hc
   })
+  
+  
+# output$plot3 <- renderHighchart({
+# 
+#   # Filter data for selected state
+#   state_data <- part2_map1 %>%
+#     filter(GeoName == input$selected_geoName)
+# 
+#   # Create line graph
+#   hc <- highchart() %>%
+#     hc_chart(type = "line") %>%
+#     hc_add_series(
+#       data = state_data,
+#       hcaes(x = year, y = income_per_capita, text = GeoName),
+#       color = "#35B779FF",
+#       name = "Income Per Capita"
+#     ) %>%
+#     hc_plotOptions(series = list(marker = list(enabled = FALSE))) %>%
+#     hc_tooltip(
+#       formatter = JS(
+#         "function() {
+#           return '<b>' + this.point.text + '</b><br>' +
+#             'Income Per Capita: $' + Highcharts.numberFormat(this.y, 0) + '<br>' +
+#             'Year: ' + Highcharts.numberFormat(this.x, 0);
+#         }"
+#       )
+#     ) %>%
+#     hc_title(
+#       text = paste("Income Per Capita Over Time for", input$selected_geoName)
+#     ) %>%
+#     hc_xAxis(title = list(text = "Year")) %>%
+#     hc_yAxis(title = list(text = "Income Per Capita")) %>%
+#     hc_credits(enabled = FALSE) %>%
+#     hc_exporting(enabled = FALSE)
+# 
+#   hc
+# })
   
   #line graph for Page 3
   output$plot4 <- renderHighchart({
     
-    # Color palette is same as before
+    # Color palette is the same as before
     color_palette <- c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF", "#26828EFF", "#1F9D89FF", "#35B779FF", "#6DCD59FF")
     
     # Creating a list of data by GeoName
     list_data <- split(part2_map1, part2_map1$GeoName)
     
-    # Initializing a highchart object
     hchart <- highchart() 
     
     # Adding data series
@@ -318,7 +387,6 @@ server <- function(input,output){
         )
     }
     
-    # Adding titles and returning the plot
     hchart %>% 
       hc_title(text = "Income Per Capita Over Time") %>% 
       hc_xAxis(title = list(text = "Year")) %>% 
@@ -330,7 +398,6 @@ server <- function(input,output){
       }
     "))
   })
-  
 }
 
 shinyApp(ui,server)
