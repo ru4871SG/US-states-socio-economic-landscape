@@ -155,7 +155,6 @@ server <- function(input,output){
   })
   
   
-  #interactive map
   output$map <- renderLeaflet({
     
     # Merge geo_data and data_for_year
@@ -184,7 +183,6 @@ server <- function(input,output){
     
     mytext <- lapply(mytext, htmltools::HTML)
     
-    # Add a title to the first map
     titlemap1 <- tags$div(
       tags$h2(
         HTML("Income Per Capita Map"),
@@ -236,7 +234,6 @@ server <- function(input,output){
         )
     }
     
-    # Return the map
     map
   })
   
@@ -258,39 +255,10 @@ server <- function(input,output){
       ) %>%
       hc_title(text = "Income Per Capita for All") %>%
       hc_colors("#428f61") %>%
-      hc_credits(enabled = FALSE) %>%
-      hc_exporting(enabled = FALSE)
+      hc_credits(enabled = FALSE)
     
     hc
   })
-  # output$plot2 <- renderPlotly({
-  #   
-  #   # Define green color theme
-  #   green_theme <- theme_minimal() +
-  #     theme(
-  #       plot.background = element_rect(fill = "#f4f0f0"),
-  #       panel.background = element_rect(fill = "#c4e2c0"),
-  #       panel.grid.major = element_line(colour = "white"),
-  #       panel.grid.minor = element_line(colour = "white")
-  #     )
-  #   
-  #   # Create bar plot
-  #   ggplot1 <- ggplot(data_for_year(), 
-  #                     aes(x = reorder(GeoName, income_per_capita), 
-  #                         y = income_per_capita,
-  #                         text = paste(GeoName, ":", sprintf("$%s", formatC(income_per_capita, format = "d", big.mark = ",")))
-  #                         )) +
-  #     geom_bar(stat = "identity", fill = "#428f61") +
-  #     green_theme +
-  #     coord_flip() +
-  #     labs(title = "Income Per Capita Over Time", x = "", y = "")
-  #   
-  #   ggplotly(ggplot1, tooltip = "text") %>%
-  #     layout(hovermode = 'closest') %>% # Hover closest to cursor
-  #     layout(
-  #       hoverlabel = list(bgcolor = "white"
-  #                         ))
-  # })
   
   #line graph for Page 1
   library(highcharter)
@@ -326,43 +294,6 @@ server <- function(input,output){
     
     hc
   })
-  
-  
-# output$plot3 <- renderHighchart({
-# 
-#   # Filter data for selected state
-#   state_data <- part2_map1 %>%
-#     filter(GeoName == input$selected_geoName)
-# 
-#   # Create line graph
-#   hc <- highchart() %>%
-#     hc_chart(type = "line") %>%
-#     hc_add_series(
-#       data = state_data,
-#       hcaes(x = year, y = income_per_capita, text = GeoName),
-#       color = "#35B779FF",
-#       name = "Income Per Capita"
-#     ) %>%
-#     hc_plotOptions(series = list(marker = list(enabled = FALSE))) %>%
-#     hc_tooltip(
-#       formatter = JS(
-#         "function() {
-#           return '<b>' + this.point.text + '</b><br>' +
-#             'Income Per Capita: $' + Highcharts.numberFormat(this.y, 0) + '<br>' +
-#             'Year: ' + Highcharts.numberFormat(this.x, 0);
-#         }"
-#       )
-#     ) %>%
-#     hc_title(
-#       text = paste("Income Per Capita Over Time for", input$selected_geoName)
-#     ) %>%
-#     hc_xAxis(title = list(text = "Year")) %>%
-#     hc_yAxis(title = list(text = "Income Per Capita")) %>%
-#     hc_credits(enabled = FALSE) %>%
-#     hc_exporting(enabled = FALSE)
-# 
-#   hc
-# })
   
   #line graph for Page 3
   output$plot4 <- renderHighchart({
