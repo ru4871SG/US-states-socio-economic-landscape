@@ -49,12 +49,12 @@ ui <- navbarPage(
                  leafletOutput(outputId = "map"),
                  conditionalPanel(
                    condition = 'input.selected_geoName == "All"',
-                   highchartOutput(outputId = "plot2", height = 850)
+                   highchartOutput(outputId = "page1_1", height = 850)
                  ),
                  conditionalPanel(
                    condition = 'input.selected_geoName != "All"',
                    tags$div(style = "display:inline-block; width:25px;"),
-                   withSpinner(highchartOutput(outputId = "plot3"))
+                   withSpinner(highchartOutput(outputId = "page1_2"))
                  )
                )
                
@@ -68,8 +68,7 @@ ui <- navbarPage(
                sidebarPanel(
                  helpText("Highchart scatterplots to see the correlation between income per capita vs. college completion and employment percentage. Choose the y-value to change the plot."),
                  selectInput(
-                   #we use input$plot1_input in the server side
-                   "plot1_input", h3("Select the y-value"),
+                   "page2_input", h3("Select the y-value"),
                    choices = list(
                      "College Completion Percentage" = "collegecompletion_2017_2021", 
                      "Employment / Population" = "employment_percentage_2021"), 
@@ -77,7 +76,7 @@ ui <- navbarPage(
                    selectize = FALSE)
                ),
                mainPanel(
-                 withSpinner(highchartOutput("plot1"))
+                 withSpinner(highchartOutput("page2"))
                )
              )
            )
@@ -88,7 +87,7 @@ ui <- navbarPage(
              mainPanel(
                fluidRow(
                  helpText("Highchart line graph to see the growth of income per capita over time for the entire country."),
-                 withSpinner(highchartOutput("plot4", height=580))
+                 withSpinner(highchartOutput("page3", height=580))
                )
              )
            )
@@ -97,49 +96,6 @@ ui <- navbarPage(
 
 # server
 server <- function(input,output){
-  #this plot1 is for page 2, while plot2 below is for page 1.
-  selected_data <- reactive({
-    hover_label <- if (input$plot1_input == "collegecompletion_2017_2021") {
-      "College Completion"
-    } else if (input$plot1_input == "employment_percentage_2021") {
-      "Employment / Population"
-    } else {
-      input$plot1_input
-    }
-    
-    # Linear Model, needed to make it here for the highchart plot
-    lm_model <- lm(part1_merged[[input$plot1_input]] ~ incomepercapita_2021, data = part1_merged)
-    x_range <- range(part1_merged$incomepercapita_2021)
-    x_values <- seq(from = x_range[1], to = x_range[2], length.out = 100)
-    y_values <- predict(lm_model, newdata = data.frame(incomepercapita_2021 = x_values))
-    lm_line <- data.frame(x_values, y_values)
-    
-    
-    color_scale <- grDevices::colorRampPalette(viridis::viridis(100))
-    
-    part1_merged$color <- color_scale(100)[cut(part1_merged$incomepercapita_2021, breaks = 100)]
-    
-    hchart(part1_merged, "scatter", hcaes(x = incomepercapita_2021, y = .data[[input$plot1_input]], color = color), name = hover_label) %>%
-      hc_title(text = "Income Per Capita vs. Education and Employment") %>%
-      hc_xAxis(title = list(text = "Income per Capita")) %>%
-      hc_yAxis(title = list(text = hover_label)) %>%
-      hc_colorAxis() %>%
-      hc_tooltip(formatter = JS("function() {
-          if (this.series.name == 'Linear Regression') {
-              return '<b>X: </b>' + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.x) +
-        '<br><b>Y: </b>' + (this.y * 100).toFixed(2) + '%';
-          } else {
-              return '<b>State: </b>' + this.point.GeoName +
-        '<br><b>Income per Capita: </b>' + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.point.incomepercapita_2021) +
-        '<br><b>' + this.series.name + ': </b>' + (this.point.y * 100).toFixed(2) + '%';
-          }}")) %>%
-      hc_add_series(data = lm_line, type = "line", name = "Linear Regression", hcaes(x = x_values, y = y_values), color = "red")
-  })
-  
-  output$plot1 <- renderHighchart({
-    selected_data()
-  })
-  
   data_for_year <- reactive({
     # If user has selected "All", we show all states
     if(input$selected_geoName == "All") {
@@ -190,7 +146,6 @@ server <- function(input,output){
       )
     )
     
-    # Create the leaflet map
     map <- leaflet(merged_data)
     
     # if-else for the setView, because some states are too small with default setView
@@ -238,7 +193,7 @@ server <- function(input,output){
   })
   
   #vertical bar graph for Page 1
-  output$plot2 <- renderHighchart({
+  output$page1_1 <- renderHighchart({
     
     data_ordered <- data_for_year() %>%
       arrange(desc(income_per_capita))
@@ -263,11 +218,11 @@ server <- function(input,output){
   #line graph for Page 1
   library(highcharter)
   
-  output$plot3 <- renderHighchart({
+  output$page1_2 <- renderHighchart({
     
     state_data <- part2_map1 %>%
       filter(GeoName == input$selected_geoName)
-
+    
     hc <- highchart() %>%
       hc_chart(type = "line") %>%
       hc_xAxis(title = list(text = "Year")) %>%
@@ -295,8 +250,63 @@ server <- function(input,output){
     hc
   })
   
+  #Page 2 plot
+  selected_data <- reactive({
+    hover_label <- if (input$page2_input == "collegecompletion_2017_2021") {
+      "College Completion"
+    } else if (input$page2_input == "employment_percentage_2021") {
+      "Employment / Population"
+    } else {
+      input$page2_input
+    }
+    
+    # Linear Model, needed to make it here for the highchart plot
+    lm_model <- lm(part1_merged[[input$page2_input]] ~ incomepercapita_2021, data = part1_merged)
+    x_range <- range(part1_merged$incomepercapita_2021)
+    x_values <- seq(from = x_range[1], to = x_range[2], length.out = 100)
+    y_values <- predict(lm_model, newdata = data.frame(incomepercapita_2021 = x_values))
+    lm_line <- data.frame(x_values, y_values)
+    
+    
+    color_scale <- grDevices::colorRampPalette(viridis::viridis(100))
+    
+    part1_merged$color <- color_scale(100)[cut(part1_merged$incomepercapita_2021, breaks = 100)]
+    
+    #pearson's correlation coefficient which we will use under hc_annotations below
+    correlation <- reactive({
+      cor(part1_merged$incomepercapita_2021, part1_merged[[input$page2_input]])
+    })
+    
+    hchart(part1_merged, "scatter", hcaes(x = incomepercapita_2021, y = .data[[input$page2_input]], color = color), name = hover_label) %>%
+      hc_title(text = "Income Per Capita vs. Education and Employment") %>%
+      hc_xAxis(title = list(text = "Income per Capita")) %>%
+      hc_yAxis(title = list(text = hover_label)) %>%
+      hc_colorAxis() %>%
+      hc_tooltip(formatter = JS("function() {
+          if (this.series.name == 'Linear Regression') {
+              return '<b>X: </b>' + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.x) +
+        '<br><b>Y: </b>' + (this.y * 100).toFixed(2) + '%';
+          } else {
+              return '<b>State: </b>' + this.point.GeoName +
+        '<br><b>Income per Capita: </b>' + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.point.incomepercapita_2021) +
+        '<br><b>' + this.series.name + ': </b>' + (this.point.y * 100).toFixed(2) + '%';
+          }}")) %>%
+      hc_add_series(data = lm_line, type = "line", name = "Linear Regression", hcaes(x = x_values, y = y_values), color = "red") %>%
+      hc_annotations(
+        list(
+          labels = list(
+            list(point = list(x = 500, y = 250), text = paste("Correlation coefficient: ", round(correlation(), 4)))
+          )
+        )
+      )
+  })
+  
+  output$page2 <- renderHighchart({
+    selected_data()
+  })
+  
   #line graph for Page 3
-  output$plot4 <- renderHighchart({
+  output$page3 <- renderHighchart({
     
     # Color palette is the same as before
     color_palette <- c("#440154FF", "#482878FF", "#3E4A89FF", "#31688EFF", "#26828EFF", "#1F9D89FF", "#35B779FF", "#6DCD59FF")
