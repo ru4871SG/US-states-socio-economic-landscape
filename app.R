@@ -77,7 +77,7 @@ ui <- navbarPage(
                ),
                mainPanel(
                  withSpinner(highchartOutput("page2")),
-                 withSpinner(textOutput("correlationTestText"))
+                 withSpinner(uiOutput("correlationTestText"))
                )
              )
            )
@@ -314,7 +314,7 @@ server <- function(input,output){
     selected_data()
   })
   
-  output$correlationTestText <- renderText({
+  output$correlationTestText <- renderUI({
     test_result <- correlationTest()
     cor_value <- round(test_result$estimate, 4)
     p_value <- format(test_result$p.value, scientific = TRUE)
@@ -322,20 +322,20 @@ server <- function(input,output){
     ci_upper <- round(test_result$conf.int[2], 4)
     
     cor_num_text <- if(input$page2_input == "collegecompletion_2017_2021") {
-      "; indicating a significant relationship."
+      ", indicating a significant relationship."
     } else if (input$page2_input == "employment_percentage_2021") {
-      "; indicating a moderately strong relationship."
+      ", indicating a moderately strong relationship."
     } else {
-      "; indicating a relationship."
+      ", indicating a relationship."
     }
     
-    hypothesis <- "; rejecting the null hypothesis. The null hypothesis here is that there's no relationship between the variables, which we reject, because the p-value is less than the significance level."
+    hypothesis <- ", rejecting the null hypothesis. The null hypothesis here is that there's no relationship between the variables, which we reject, because the p-value is less than the significance level."
     
-    paste("The correlation coefficient is", cor_value, cor_num_text, "Meanwhile, the p-value is", p_value,
-          hypothesis, "The 95% Confidence Interval (CI) for this correlation is [",
-          ci_lower, ", ", ci_upper, "].")
+    HTML(paste0("<p>The correlation coefficient is <b>", cor_value, "</b>", cor_num_text, 
+                " Meanwhile, the p-value is <b>", p_value, "</b>", hypothesis, 
+                "</p><p>The 95% Confidence Interval (CI) for this correlation is [", 
+                ci_lower, ", ", ci_upper, "].</p>"))
   })
-  
   
   
   
