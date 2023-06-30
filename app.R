@@ -266,6 +266,14 @@ server <- function(input,output){
       input$page2_input
     }
     
+    title_text <- if (input$page2_input == "collegecompletion_2017_2021") {
+      "Income Per Capita vs. College Completion"
+    } else if (input$page2_input == "employment_percentage_2021") {
+      "Income Per Capita vs. Employment / Population"
+    } else {
+      "Income Per Capita Correlation"
+    }
+    
     # Linear Model, needed to make it here for the highchart plot
     lm_model <- lm(part1_merged[[input$page2_input]] ~ incomepercapita_2021, data = part1_merged)
     x_range <- range(part1_merged$incomepercapita_2021)
@@ -279,7 +287,7 @@ server <- function(input,output){
     part1_merged$color <- color_scale(100)[cut(part1_merged$incomepercapita_2021, breaks = 100)]
     
     hchart(part1_merged, "scatter", hcaes(x = incomepercapita_2021, y = .data[[input$page2_input]], color = color), name = hover_label) %>%
-      hc_title(text = "Income Per Capita vs. Education and Employment") %>%
+      hc_title(text = title_text) %>%
       hc_xAxis(title = list(text = "Income per Capita")) %>%
       hc_yAxis(title = list(text = hover_label)) %>%
       hc_colorAxis() %>%
@@ -324,7 +332,7 @@ server <- function(input,output){
     hypothesis <- "; rejecting the null hypothesis. The null hypothesis here is that there's no relationship between the variables, which we reject, because the p-value is less than the significance level."
     
     paste("The correlation coefficient is", cor_value, cor_num_text, "Meanwhile, the p-value is", p_value,
-          hypothesis, "The 95% confidence interval for this correlation is [",
+          hypothesis, "The 95% Confidence Interval (CI) for this correlation is [",
           ci_lower, ", ", ci_upper, "].")
   })
   
