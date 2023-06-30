@@ -76,7 +76,8 @@ ui <- navbarPage(
                    selectize = FALSE)
                ),
                mainPanel(
-                 withSpinner(highchartOutput("page2"))
+                 withSpinner(highchartOutput("page2")),
+                 withSpinner(textOutput("correlationTestText"))
                )
              )
            )
@@ -250,6 +251,11 @@ server <- function(input,output){
     hc
   })
   
+  correlationTest <- reactive({
+    cor.test(part1_merged$incomepercapita_2021, part1_merged[[input$page2_input]])
+  })
+  
+  
   #Page 2 plot
   selected_data <- reactive({
     hover_label <- if (input$page2_input == "collegecompletion_2017_2021") {
@@ -272,11 +278,6 @@ server <- function(input,output){
     
     part1_merged$color <- color_scale(100)[cut(part1_merged$incomepercapita_2021, breaks = 100)]
     
-    #pearson's correlation coefficient which we will use under hc_annotations below
-    correlation <- reactive({
-      cor(part1_merged$incomepercapita_2021, part1_merged[[input$page2_input]])
-    })
-    
     hchart(part1_merged, "scatter", hcaes(x = incomepercapita_2021, y = .data[[input$page2_input]], color = color), name = hover_label) %>%
       hc_title(text = "Income Per Capita vs. Education and Employment") %>%
       hc_xAxis(title = list(text = "Income per Capita")) %>%
@@ -291,19 +292,44 @@ server <- function(input,output){
         '<br><b>Income per Capita: </b>' + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(this.point.incomepercapita_2021) +
         '<br><b>' + this.series.name + ': </b>' + (this.point.y * 100).toFixed(2) + '%';
           }}")) %>%
-      hc_add_series(data = lm_line, type = "line", name = "Linear Regression", hcaes(x = x_values, y = y_values), color = "red") %>%
-      hc_annotations(
-        list(
-          labels = list(
-            list(point = list(x = 500, y = 250), text = paste("Correlation coefficient: ", round(correlation(), 4)))
-          )
-        )
-      )
+      hc_add_series(data = lm_line, type = "line", name = "Linear Regression", hcaes(x = x_values, y = y_values), color = "red") 
+      # %>% hc_annotations(
+      #   list(
+      #     labels = list(
+      #       list(point = list(x = 500, y = 250), text = paste("Correlation coefficient: ", round(correlation(), 4)))
+      #     )
+      #   )
+      # )
   })
   
   output$page2 <- renderHighchart({
     selected_data()
   })
+  
+  output$correlationTestText <- renderText({
+    test_result <- correlationTest()
+    cor_value <- round(test_result$estimate, 4)
+    p_value <- format(test_result$p.value, scientific = TRUE)
+    ci_lower <- round(test_result$conf.int[1], 4)
+    ci_upper <- round(test_result$conf.int[2], 4)
+    
+    cor_num_text <- if(input$page2_input == "collegecompletion_2017_2021") {
+      "; indicating a significant relationship."
+    } else if (input$page2_input == "employment_percentage_2021") {
+      "; indicating a moderately strong relationship."
+    } else {
+      "; indicating a relationship."
+    }
+    
+    hypothesis <- "; rejecting the null hypothesis. The null hypothesis is that there's no relationship between the variables, which we reject, because the p-value is less than the significance level."
+    
+    paste("The correlation coefficient is", cor_value, cor_num_text, "Meanwhile, the p-value is", p_value,
+          hypothesis, "The 95% confidence interval for this correlation is [",
+          ci_lower, ", ", ci_upper, "].")
+  })
+  
+  
+  
   
   #line graph for Page 3
   output$page3 <- renderHighchart({
