@@ -321,7 +321,7 @@ server <- function(input,output){
       "; indicating a relationship."
     }
     
-    hypothesis <- "; rejecting the null hypothesis. The null hypothesis is that there's no relationship between the variables, which we reject, because the p-value is less than the significance level."
+    hypothesis <- "; rejecting the null hypothesis. The null hypothesis here is that there's no relationship between the variables, which we reject, because the p-value is less than the significance level."
     
     paste("The correlation coefficient is", cor_value, cor_num_text, "Meanwhile, the p-value is", p_value,
           hypothesis, "The 95% confidence interval for this correlation is [",
